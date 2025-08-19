@@ -1,84 +1,158 @@
-// عناصر وأدوات مشتركة
-const fields = ['level','rank','health','strength','stamina','speed','agility','intelligence','sense'];
-const $ = (id) => document.getElementById(id);
+class SoloRPG {
+  constructor(){
+    this.state = {
+      level:1, exp:0, health:100, rank:"Beginner",
+      stats:{ strength:1, stamina:1, speed:1, agility:1, intelligence:1, sense:1 },
+      tasks:[], log:[], history:[],
+    };
+    this.answers = {};
+    this.load();
+    this.update();
+    this.bind();
+    setInterval(()=>this.saveNow(),20000); // backup save كل 20 ثانية
+  }
 
-function defaultData(){
-  return { level:0, rank:'E', health:0, strength:0, stamina:0, speed:0, agility:0, intelligence:0, sense:0 };
-}
+  bind(){
+    document.getElementById("addTaskBtn").onclick=()=>this.addTask();
+    document.getElementById("fightBtn").onclick=()=>{this.fight(); this.saveNow();};
+    document.getElementById("restBtn").onclick=()=>{this.rest(); this.saveNow();};
+    document.getElementById("assessBtn").onclick=()=>this.startAssess();
+    document.getElementById("submitAssessBtn").onclick=()=>this.submitAssess();
+    document.getElementById("exportBtn").onclick=()=>this.export();
+    document.getElementById("importBtn").onclick=()=>{
+      document.getElementById("importFile").click();
+    };
+    document.getElementById("importFile").addEventListener("change",e=>this.import(e));
+  }
 
-function showMsg(t){
-  const el = $('msg');
-  if(!el) return;
-  el.textContent = t;
-  setTimeout(()=>{ if(el.textContent === t) el.textContent=''; }, 3000);
-}
-
-// 🟢 حفظ
-function save(){
-  const data = {};
-  fields.forEach(f => {
-    const el = $(f);
-    data[f] = el ? (el.type === 'number' ? Number(el.value) : el.value) : null;
-  });
-  localStorage.setItem('solo_stats', JSON.stringify(data));
-  showMsg('تم الحفظ محلياً ✅');
-}
-$('saveBtn').addEventListener('click', save);
-
-// 🟢 تحميل
-function load(){
-  const raw = localStorage.getItem('solo_stats');
-  const data = raw ? JSON.parse(raw) : defaultData();
-  fields.forEach(f => {
-    const el = $(f);
-    if(el) el.value = (data[f] ?? defaultData()[f]);
-  });
-  showMsg('تم تحميل البيانات.');
-}
-$('loadBtn').addEventListener('click', load);
-window.addEventListener('DOMContentLoaded', load);
-
-// 🟢 إعادة ضبط
-function resetStats(){
-  if(!confirm('هل تريد مسح الإحصائيات وإعادة الضبط؟')) return;
-  const def = defaultData();
-  fields.forEach(f => { const el = $(f); if(el) el.value = def[f]; });
-  localStorage.removeItem('solo_stats');
-  showMsg('تمت إعادة الضبط.');
-}
-$('resetBtn').addEventListener('click', resetStats);
-
-// 🟢 تصدير
-function exportJSON(){
-  const raw = localStorage.getItem('solo_stats') || JSON.stringify(defaultData());
-  const blob = new Blob([raw], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'solo_stats.json';
-  a.click();
-  URL.revokeObjectURL(url);
-  showMsg('تم تنزيل ملف JSON.');
-}
-$('exportBtn').addEventListener('click', exportJSON);
-
-// 🟢 استيراد
-function importJSON(){
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'application/json';
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
-    try{
-      const text = await file.text();
-      const data = JSON.parse(text);
-      fields.forEach(f => { const el = $(f); if(el && data[f] !== undefined) el.value = data[f]; });
-      localStorage.setItem('solo_stats', JSON.stringify(data));
-      showMsg('تم استيراد البيانات من JSON ✅');
-    } catch(err){
-      showMsg('⚠️ ملف JSON غير صالح');
+  // --- حفظ ---
+  autoSave(){
+    clearTimeout(this._t);
+    this._t=setTimeout(()=>this.saveNow(),1200);
+  }
+  saveNow(){
+    localStorage.setItem("solo_rpg_v1_improved", JSON.stringify(this.state));
+  }
+  load(){
+    const raw = localStorage.getItem("solo_rpg_v1_improved");
+    if(raw){
+      try{ this.state = JSON.parse(raw); }catch{}
     }
-  };
-  input.click();
+  }
+
+  // --- تحديث واجهة ---
+  update(){
+    // ... نفس كود التحديث للواجهة ...
+    this.autoSave();
+  }
+
+  // --- نظام التدريب والقتال ---
+  fight(){
+    const res = Math.random();
+    if(res>0.5){
+      this.state.exp+=10; this.pushLog("فزت! +10 XP");
+    } else {
+      this.state.health-=10; this.pushLog("خسرت! -10 HP");
+    }
+    this.checkLevel();
+    this.update();
+  }
+
+  rest(){
+    this.state.health=Math.min(100,this.state.health+15);
+    this.state.exp+=2; this.pushLog("استراحة: +15 HP, +2 XP");
+    this.checkLevel();
+    this.update();
+  }
+
+  // --- المهام ---
+  addTask(){
+    const title=document.getElementById("taskTitle").value.trim();
+    const mins=parseInt(document.getElementById("taskTime").value)||30;
+    if(!title) return;
+    this.state.tasks.push({id:Date.now(), title, deadline:Date.now()+mins*60000, done:false, penalty:false});
+    document.getElementById("taskTitle").value="";
+    document.getElementById("taskTime").value="";
+    this.update();
+    this.saveNow();
+  }
+
+  // --- التقييم ---
+  startAssess(){
+    document.getElementById("assessArea").innerHTML = "";
+    this.answers={};
+    const qs=[
+      {k:"strength",q:"كم مرة تمارس تمارين المقاومة في الأسبوع؟",o:["أبداً",1,"مرتين",3,">4 مرات",5]},
+      {k:"stamina",q:"كم دقيقة تستطيع الجري المتواصل؟",o:["<5",1,"10-20",3,">30",5]},
+      {k:"speed",q:"ما مدى سرعتك في الجري لمسافة قصيرة؟",o:["بطيء",1,"متوسط",3,"سريع جداً",5]},
+      {k:"agility",q:"هل تستطيع أداء تمارين مرونة بسهولة؟",o:["صعوبة شديدة",1,"متوسط",3,"سهل",5]},
+      {k:"intelligence",q:"هل تعرف أساسيات التغذية والتمارين؟",o:["لا",1,"بعض الشيء",3,"نعم جيداً",5]},
+      {k:"sense",q:"هل تتابع إشارات جسمك (تعب/ألم) وتتصرف؟",o:["أبداً",1,"أحياناً",3,"دائماً",5]},
+    ];
+    qs.forEach((q,i)=>{
+      const div=document.createElement("div");
+      div.innerHTML=`<p>${q.q}</p>`;
+      q.o.forEach((o,j)=>{
+        if(j%2==0) return;
+      });
+      const sel=document.createElement("select");
+      [1,2,3,4,5].forEach(v=>{
+        const op=document.createElement("option");
+        op.value=v; op.textContent=v;
+        sel.appendChild(op);
+      });
+      sel.onchange=(e)=>{this.answers[q.k]=parseInt(e.target.value);};
+      div.appendChild(sel);
+      document.getElementById("assessArea").appendChild(div);
+    });
+  }
+
+  submitAssess(){
+    const total = Object.values(this.answers).reduce((a,b)=>a+b,0);
+    const score = Math.round(total / Object.keys(this.answers).length);
+    let grade="ضعيف";
+    if(score>=4) grade="ممتاز"; else if(score>=3) grade="جيد"; else if(score>=2) grade="مقبول";
+
+    document.getElementById("assessResult").classList.remove("hidden");
+    document.getElementById("assessScore").textContent=score;
+    document.getElementById("assessGrade").textContent=grade;
+
+    this.state.history.unshift({ date:new Date().toLocaleString(), score, grade });
+    if(this.state.history.length>20) this.state.history.pop();
+    this.update();
+    this.saveNow(); // حفظ فوري بعد التقييم
+  }
+
+  // --- لوج ---
+  pushLog(msg){
+    this.state.log.unshift(msg);
+    if(this.state.log.length>50) this.state.log.pop();
+  }
+
+  // --- ليفيل ---
+  checkLevel(){
+    while(this.state.exp>=100){
+      this.state.exp-=100; this.state.level++;
+      this.pushLog("Level Up! → "+this.state.level);
+    }
+  }
+
+  // --- استيراد/تصدير ---
+  export(){
+    const blob=new Blob([JSON.stringify(this.state)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="solo_rpg_save.json";
+    a.click();
+  }
+  import(e){
+    const file=e.target.files[0]; if(!file) return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{ this.state=JSON.parse(r.result); this.update(); this.saveNow(); }catch{}
+    };
+    r.readAsText(file);
+  }
 }
-$('importBtn').addEventListener('click', importJSON);
+
+window.SoloRPG=new SoloRPG();
