@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solo Leveling Stats</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>إحصائيات اللاعب</h1>
+
+    <div class="stats-grid">
+      <label>المستوى: <input id="level" type="number" value="0"></label>
+      <label>الرتبة: 
+        <select id="rank">
+          <option>E</option><option>D</option><option>C</option>
+          <option>B</option><option>A</option><option>S</option>
+        </select>
+      </label>
+      <label>الصحة: <input id="health" type="number" value="0"></label>
+      <label>القوة: <input id="strength" type="number" value="0"></label>
+      <label>الطاقة: <input id="stamina" type="number" value="0"></label>
+      <label>السرعة: <input id="speed" type="number" value="0"></label>
+      <label>الرشاقة: <input id="agility" type="number" value="0"></label>
+      <label>الذكاء: <input id="intelligence" type="number" value="0"></label>
+      <label>الحواس: <input id="sense" type="number" value="0"></label>
+    </div>
+
+    <div class="buttons">
+      <button id="saveBtn">💾 حفظ</button>
+      <button id="loadBtn">📂 تحميل</button>
+      <button id="resetBtn">♻️ إعادة ضبط</button>
+      <button id="exportBtn">⬇️ تصدير JSON</button>
+      <button id="importBtn">⬆️ استيراد JSON</button>
+    </div>
+
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
